@@ -1,0 +1,756 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>ICE Connectivity Explorer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one reading column; a wide interactive simulator (controls, network diagram, candidate lists, checklist) followed by reference sections. */
+:root{
+  --bg:#F4F6F9; --surface:#FFFFFF; --surface2:#EBEFF4; --fg:#131A24; --muted:#58657A; --line:#D5DCE6;
+  --accent:#1F4FD8; --accent-soft:#E3EBFF;
+  --host:#56657F; --srflx:#0B8A84; --prflx:#8247CC; --relay:#B26B00;
+  --ok:#17803F; --bad:#C23A30; --ok-soft:#DFF3E6; --bad-soft:#FBE6E4;
+  --font:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F141C; --surface:#171E29; --surface2:#1F2835; --fg:#E7ECF4; --muted:#93A0B5; --line:#2D3848;
+  --accent:#7B9CFF; --accent-soft:#1D2A4D;
+  --host:#9AA9C4; --srflx:#3FD0C8; --prflx:#B993F0; --relay:#F0A93B;
+  --ok:#4CC27E; --bad:#FF7F73; --ok-soft:#16301F; --bad-soft:#3A1E1C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F141C; --surface:#171E29; --surface2:#1F2835; --fg:#E7ECF4; --muted:#93A0B5; --line:#2D3848;
+  --accent:#7B9CFF; --accent-soft:#1D2A4D;
+  --host:#9AA9C4; --srflx:#3FD0C8; --prflx:#B993F0; --relay:#F0A93B;
+  --ok:#4CC27E; --bad:#FF7F73; --ok-soft:#16301F; --bad-soft:#3A1E1C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.6;
+  padding-block:0 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1120px;margin:0 auto}
+h1,h2,h3{line-height:1.2;text-wrap:balance;margin:0}
+h1{font-size:clamp(28px,5vw,42px);font-weight:600;letter-spacing:-.02em}
+h2{font-size:24px;font-weight:600;letter-spacing:-.01em;margin-bottom:12px}
+h3{font-size:16px;font-weight:600}
+p{margin:0 0 12px;max-width:68ch}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,tr:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,.mono{font-family:var(--mono);font-size:.9em}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+header.top{padding-block:40px 24px;display:grid;gap:14px}
+header.top p{font-size:17px;color:var(--muted)}
+nav.jump{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px}
+section{padding-block:28px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
+.note{font-size:13px;color:var(--muted)}
+
+/* simulator */
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}
+.field{display:grid;gap:4px;min-width:0}
+.field label,.field .lab{font-size:12px;color:var(--muted);font-weight:500}
+select{font:inherit;font-size:14px;color:var(--fg);background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:7px 8px;min-width:0;width:100%}
+.check{display:flex;align-items:center;gap:8px;font-size:14px;min-height:38px}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+.presets{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.presets .lab{font-size:12px;color:var(--muted);font-weight:500;margin-right:4px}
+button{font:inherit;font-size:14px;cursor:pointer;border-radius:6px;border:1px solid var(--line);background:var(--surface2);color:var(--fg);padding:7px 12px}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+:root[data-theme="dark"] button.primary{color:#0F141C}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) button.primary{color:#0F141C}}
+button:disabled{opacity:.45;cursor:default}
+.chip{font-size:13px;padding:4px 10px;border-radius:999px}
+
+.runbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+.stages{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
+.stage{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.stage.done{color:var(--ok);border-color:var(--ok)}
+.stage.on{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);font-weight:600}
+
+.diagram{overflow-x:auto;margin-top:16px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+.diagram svg{display:block;min-width:720px;width:100%;height:auto}
+svg text{font-family:var(--mono);fill:var(--fg);font-size:11px}
+svg .lbl{font-family:var(--font);font-size:12px;font-weight:600}
+svg .sub{fill:var(--muted);font-size:10.5px}
+svg .box{fill:var(--surface2);stroke:var(--line);stroke-width:1.5}
+svg .box.pub{stroke-dasharray:4 3}
+svg .net{stroke:var(--line);stroke-width:2;fill:none}
+svg .cloud{fill:var(--surface2);stroke:var(--line);stroke-dasharray:3 4}
+svg .path{fill:none;stroke-width:4;stroke-linejoin:round;stroke-linecap:round}
+svg .path.inprog{stroke:var(--accent);stroke-dasharray:8 10;animation:march .8s linear infinite}
+svg .path.ok{stroke:var(--ok)}
+svg .path.sel{stroke:var(--ok);stroke-width:6}
+svg .path.fail{stroke:var(--bad);stroke-dasharray:3 9}
+svg .path.idle{stroke:var(--muted);stroke-dasharray:2 8;opacity:.6}
+svg .t-host{fill:var(--host)} svg .t-srflx{fill:var(--srflx)} svg .t-relay{fill:var(--relay)} svg .t-prflx{fill:var(--prflx)}
+svg .pop{animation:pop .35s ease-out}
+@keyframes march{to{stroke-dashoffset:-18}}
+@keyframes pop{from{opacity:0}to{opacity:1}}
+
+.cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-top:16px}
+.cand{display:grid;grid-template-columns:auto 1fr auto;gap:4px 12px;align-items:center;font-size:13px;margin-top:10px}
+.cand .addr{font-family:var(--mono);min-width:0;overflow-wrap:anywhere}
+.cand .pr{font-family:var(--mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.badge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:500;padding:1px 8px;border-radius:4px;border:1px solid currentColor}
+.badge.host{color:var(--host)} .badge.srflx{color:var(--srflx)} .badge.relay{color:var(--relay)} .badge.prflx{color:var(--prflx)}
+.empty{color:var(--muted);font-size:13px;margin-top:10px}
+
+.tablewrap{overflow-x:auto;margin-top:12px}
+table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px}
+th{text-align:left;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;padding:6px 10px;border-bottom:1px solid var(--line)}
+td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.mono,.num{font-variant-numeric:tabular-nums}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--surface2)}
+tr.focus td{background:var(--accent-soft)}
+tr.pruned td{color:var(--muted)}
+tr.pruned .addr{text-decoration:line-through}
+tr.sel td{background:var(--ok-soft)}
+.pill{display:inline-block;font-size:12px;font-weight:500;padding:1px 9px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.pill.waiting{border-color:var(--accent);color:var(--accent)}
+.pill.inprog{background:var(--accent);border-color:var(--accent);color:#fff;animation:blink 1s ease-in-out infinite}
+:root[data-theme="dark"] .pill.inprog{color:#0F141C}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .pill.inprog{color:#0F141C}}
+.pill.ok{background:var(--ok-soft);border-color:var(--ok);color:var(--ok)}
+.pill.fail{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.pill.frozen,.pill.pruned,.pill.stopped{color:var(--muted)}
+@keyframes blink{50%{opacity:.6}}
+.why{color:var(--muted);max-width:46ch}
+
+.result{margin-top:16px;padding:14px 16px;border-radius:10px;border:1px solid var(--line);background:var(--surface)}
+.result.ok{border-color:var(--ok);background:var(--ok-soft)}
+.result.bad{border-color:var(--bad);background:var(--bad-soft)}
+.result p{margin:4px 0 0}
+ol.log{list-style:none;margin:10px 0 0;padding:0;max-height:260px;overflow-y:auto;font-size:13px;display:grid;gap:4px}
+ol.log li{display:grid;grid-template-columns:34px 1fr;gap:8px}
+ol.log .n{font-family:var(--mono);color:var(--muted);text-align:right}
+ol.log li.good .m{color:var(--ok)} ol.log li.warn .m{color:var(--bad)}
+
+/* reference */
+.grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:16px}
+.tcard{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;display:grid;gap:6px;align-content:start}
+.tcard dl{margin:0;display:grid;gap:2px;font-size:13px}
+.tcard dt{color:var(--muted);font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-top:6px}
+.tcard dd{margin:0}
+ol.flow{margin:16px 0 0;padding:0;list-style:none;counter-reset:s;display:grid;gap:14px}
+ol.flow li{counter-increment:s;display:grid;grid-template-columns:36px 1fr;gap:12px}
+ol.flow li::before{content:counter(s);font-family:var(--mono);font-weight:500;display:grid;place-items:center;width:32px;height:32px;border-radius:50%;background:var(--accent-soft);color:var(--accent)}
+ol.flow p{margin:2px 0 0;color:var(--muted)}
+pre{background:var(--surface2);border:1px solid var(--line);border-radius:8px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.7;margin:12px 0}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:24px}
+dl.states{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;margin:12px 0;align-items:baseline}
+dl.states dd{margin:0;font-size:14px}
+footer{padding-top:24px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+footer ul{padding-left:18px;margin:8px 0}
+@media (prefers-reduced-motion: reduce){svg .path.inprog,.pill.inprog,svg .pop{animation:none}}
+@media (max-width:520px){.cols{grid-template-columns:1fr}.stages{margin-left:0}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">RFC 8445 · WebRTC · NAT traversal</div>
+  <h1>ICE Connectivity Explorer</h1>
+  <p>Two devices behind different networks need a path between them. Interactive Connectivity Establishment (ICE) collects every address that might work, tests the combinations in priority order and keeps the best one. Change the networks below and watch it decide.</p>
+  <nav class="jump" aria-label="Sections">
+    <a href="#sim">Simulator</a><a href="#types">Candidate types</a><a href="#flow">The algorithm</a><a href="#punch">Hole punching</a><a href="#priority">Priorities</a><a href="#foundation">Foundations</a><a href="#states">Pair states</a><a href="#nominate">Roles and nomination</a><a href="#sdp">Reading SDP</a><a href="#more">Beyond the basics</a>
+  </nav>
+</header>
+
+<section id="sim" style="padding-top:8px">
+  <h2>Simulator</h2>
+  <div class="panel">
+    <div class="controls">
+      <div class="field"><label for="natA">Alice's network</label><select id="natA"></select></div>
+      <div class="field"><label for="natB">Bob's network</label><select id="natB"></select></div>
+      <div class="field"><label for="nom">Nomination</label>
+        <select id="nom"><option value="regular">Regular (wait, pick the best)</option><option value="aggressive">Aggressive (first success wins)</option></select></div>
+    </div>
+    <div class="controls" style="margin-top:6px">
+      <label class="check"><input type="checkbox" id="lan"> Same LAN (shared router)</label>
+      <label class="check"><input type="checkbox" id="blockA"> Block UDP for Alice</label>
+      <label class="check"><input type="checkbox" id="blockB"> Block UDP for Bob</label>
+      <label class="check"><input type="checkbox" id="turn" checked> TURN server available</label>
+    </div>
+    <div class="presets" id="presets"><span class="lab">Scenarios</span></div>
+    <p class="note" style="margin:12px 0 0">Simplified model: one media component, one network interface per peer, UDP, no retransmission timers. Alice is the controlling agent.</p>
+  </div>
+
+  <div class="runbar">
+    <button id="btnStep" class="primary">Next step</button>
+    <button id="btnPlay">Auto-play</button>
+    <button id="btnSkip">Skip to result</button>
+    <button id="btnRestart">Restart</button>
+    <div class="stages" id="stages" aria-label="Progress"></div>
+  </div>
+
+  <div class="diagram"><svg id="diagram" viewBox="0 0 900 400" role="img" aria-label="Network diagram of Alice, Bob, their NATs and the STUN and TURN servers"></svg></div>
+  <div id="result"></div>
+
+  <div class="cols">
+    <div class="panel"><h3>Alice's candidates</h3><div id="candA"></div></div>
+    <div class="panel"><h3>Bob's candidates</h3><div id="candB"></div></div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>Alice's checklist</h3>
+    <p class="note" style="margin:4px 0 0">Sorted by pair priority. Click a row to draw its path above. Bob builds the mirror-image list and runs his own checks at the same time.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>#</th><th>Alice (local)</th><th>Bob (remote)</th><th>Pair priority</th><th>Foundation</th><th>State</th><th>Why</th></tr></thead>
+      <tbody id="pairs"></tbody></table></div>
+  </div>
+
+  <div class="panel" style="margin-top:16px">
+    <h3>Event log</h3>
+    <ol class="log" id="log"></ol>
+  </div>
+</section>
+
+<section id="types">
+  <h2>Candidate types</h2>
+  <p>A candidate is a transport address (IP, port, protocol) where a peer might receive packets. ICE gathers four kinds and prefers the ones that skip middleboxes.</p>
+  <div class="grid4">
+    <div class="tcard"><span class="badge host">host</span><h3>Local interface</h3>
+      <dl><dt>Obtained from</dt><dd>The device's own network interfaces.</dd><dt>Works when</dt><dd>Both peers share a LAN, or one has a public address.</dd><dt>Type preference</dt><dd class="mono">126</dd></dl></div>
+    <div class="tcard"><span class="badge srflx">srflx</span><h3>Server reflexive</h3>
+      <dl><dt>Obtained from</dt><dd>A STUN Binding request. The server reports the public address and port the NAT assigned.</dd><dt>Works when</dt><dd>The NATs allow hole punching. Fails when both are symmetric.</dd><dt>Type preference</dt><dd class="mono">100</dd></dl></div>
+    <div class="tcard"><span class="badge prflx">prflx</span><h3>Peer reflexive</h3>
+      <dl><dt>Obtained from</dt><dd>Learned mid-check, when a STUN request arrives from an address the peer never advertised.</dd><dt>Works when</dt><dd>Rescues pairs that a symmetric NAT broke.</dd><dt>Type preference</dt><dd class="mono">110</dd></dl></div>
+    <div class="tcard"><span class="badge relay">relay</span><h3>Relayed</h3>
+      <dl><dt>Obtained from</dt><dd>A TURN Allocate request. The server reserves a public address and forwards traffic.</dd><dt>Works when</dt><dd>Almost always. The peer sends to the TURN server, which forwards from the relayed address. Costs latency and server bandwidth.</dd><dt>Type preference</dt><dd class="mono">0</dd></dl></div>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>The algorithm, step by step</h2>
+  <ol class="flow">
+    <li><div><h3>Gather</h3><p>Each peer lists its host addresses, asks a STUN server for its server-reflexive address (a STUN Binding request, answered with the address the server saw) and asks a TURN server for a relayed address. With trickle ICE, candidates are sent as they appear instead of after gathering ends.</p></div></li>
+    <li><div><h3>Exchange</h3><p>Peers swap candidates, a username fragment and a password through signaling (in WebRTC, the SDP offer and answer). ICE does not define the signaling channel.</p></div></li>
+    <li><div><h3>Pair and prioritize</h3><p>Each peer pairs every local candidate with every remote candidate. Pairs whose local side is server-reflexive are pruned, because the packet would leave from the same host base as the host pair. The rest are sorted by pair priority.</p></div></li>
+    <li><div><h3>Check connectivity</h3><p>Each peer sends a <em>connectivity check</em> for every pair, in list order, paced at one every Ta (50 ms by default). A check is an ordinary STUN Binding request, the same message used to ask a STUN server for a reflexive address, but sent peer to peer: every ICE agent is both a STUN client and a STUN server. It carries the peers' username fragments, a message integrity check and ICE attributes (PRIORITY, ICE-CONTROLLING or ICE-CONTROLLED, USE-CANDIDATE). The success response echoes the source address the request arrived from. That proves the path works in both directions and reveals peer-reflexive addresses. For a relay candidate, the agent hands the request to the TURN server, which sends it from the relayed address. Both peers check at once, <a href="#punch">which is what opens the NAT holes</a>. Pairs that share a <a href="#foundation">foundation</a> start Frozen and thaw when a sibling succeeds.</p></div></li>
+    <li><div><h3>Nominate</h3><p>The controlling agent picks one valid pair and repeats the check with the USE-CANDIDATE attribute. The controlled agent confirms. That pair carries the media.</p></div></li>
+    <li><div><h3>Keep alive</h3><p>Consent freshness checks run for the life of the session. If the selected path dies, or the network changes, an ICE restart builds a new checklist.</p></div></li>
+  </ol>
+</section>
+
+<section id="punch">
+  <h2>Why both peers check at the same time</h2>
+  <div class="two">
+    <div>
+      <p>A restricted NAT drops inbound packets from addresses its inside host has not contacted yet. So Alice's first check toward Bob's public address is dropped by Bob's NAT. Sending it still creates a mapping on Alice's NAT that now admits packets from Bob's address.</p>
+      <p>Bob runs the mirror checklist at the same moment and sends a check toward Alice's public address. That packet finds the hole Alice just opened and is delivered. Alice answers it, and Bob's own hole is open too, so Alice's retransmitted check now gets through. Each outgoing check opens the hole the other side's check needs. Neither order of arrival matters, as long as both sides keep sending.</p>
+      <p>The simulator lists only Alice's checklist and does not model timers. It marks a pair as succeeded when the NAT types allow this exchange, and the event log notes Bob's mirror check next to each of Alice's.</p>
+    </div>
+    <div>
+<pre>t0  Alice → Bob's srflx
+    Alice's NAT: new mapping, allows Bob's IP
+    Bob's NAT:   no entry for Alice, dropped
+t0  Bob → Alice's srflx
+    Bob's NAT:   new mapping, allows Alice's IP
+    Alice's NAT: Bob's IP allowed, delivered
+    Alice replies; her response passes Bob's hole
+t1  Alice retransmits her check
+    Bob's NAT:   now allows Alice, delivered
+    Bob replies. Both pairs are valid.</pre>
+      <p class="note">A symmetric NAT breaks this: it opens a new mapping per destination, so the port that STUN reported is not the one used toward the peer.</p>
+    </div>
+  </div>
+</section>
+
+<section id="priority">
+  <h2>Priority arithmetic</h2>
+  <div class="two">
+    <div>
+      <p>Every candidate gets a 32-bit priority built from three parts:</p>
+<pre>priority = 2^24 × type_pref
+         + 2^8  × local_pref
+         + (256 − component_id)</pre>
+      <p>With one interface (local preference 65535) and one component (RTP, id 1):</p>
+<pre>host   126 → 2130706431
+prflx  110 → 1862270975
+srflx  100 → 1694498815
+relay    0 →   16777215</pre>
+    </div>
+    <div>
+      <p>A pair's priority combines the controlling agent's value G and the controlled agent's value D:</p>
+<pre>pair = 2^32 × MIN(G, D)
+     + 2   × MAX(G, D)
+     + (G &gt; D ? 1 : 0)</pre>
+      <p>The smaller candidate dominates, so a pair is only as good as its weaker half. A host–relay pair ranks below a srflx–srflx pair. MAX breaks ties, and the last term makes both peers sort identical lists even though G and D swap roles.</p>
+    </div>
+  </div>
+</section>
+
+<section id="foundation">
+  <h2>Foundations</h2>
+  <div class="two">
+    <div>
+      <p>A foundation is a short opaque string. Two candidates get the same foundation when they have the same type, the same base address, the same transport protocol and were obtained from the same STUN or TURN server. Such candidates usually behave the same way in the network.</p>
+      <p>A pair's foundation is the local foundation joined to the remote foundation. It drives the <strong>freezing</strong> rule: for each pair foundation, only the best pair starts Waiting. The others stay Frozen and thaw when a pair with that foundation succeeds. If it succeeded, its siblings probably work too, and if it failed, they would probably fail the same way, so the agent does not spend checks on them first.</p>
+      <p>In the simulator each peer has one interface, so every pair ends up with a distinct foundation and nothing starts Frozen. Freezing matters with several interfaces or several candidates from the same server, where it keeps the checklist short.</p>
+    </div>
+    <div>
+<pre>Alice host   192.168.1.23:54321  F1
+Alice srflx  203.0.113.7:61002   F2
+Alice relay  192.0.2.50:49152    F3
+Bob   host   10.0.0.8:49170      F4
+
+pair (Alice host, Bob host)  F1/F4
+pair (Alice srflx, Bob host) F2/F4</pre>
+      <p class="note">The candidate lists above the checklist show each candidate's foundation next to its priority. The SDP line in the next sections carries it as the first field after <code>a=candidate:</code>.</p>
+    </div>
+  </div>
+</section>
+
+<section id="states">
+  <h2>Pair states</h2>
+  <dl class="states">
+    <dt><span class="pill frozen">Frozen</span></dt><dd>Not checked yet. It waits for another pair with the same foundation to succeed, so the peers do not repeat the same NAT probe.</dd>
+    <dt><span class="pill waiting">Waiting</span></dt><dd>Ready. The next Ta tick will start its check.</dd>
+    <dt><span class="pill inprog">In progress</span></dt><dd>A Binding request is on the wire.</dd>
+    <dt><span class="pill ok">Succeeded</span></dt><dd>The response arrived. The pair joins the valid list.</dd>
+    <dt><span class="pill fail">Failed</span></dt><dd>Timeout or error response. The pair is never retried in this round.</dd>
+  </dl>
+  <p>Frozen pairs exist because of foundations. See <a href="#foundation">Foundations</a>.</p>
+</section>
+
+<section id="nominate">
+  <h2>Roles and nomination</h2>
+  <div class="two">
+    <div>
+      <p>One peer is the <strong>controlling</strong> agent (normally the offerer) and the other is <strong>controlled</strong>. Only the controlling agent chooses the final pair. If both claim the same role, the 487 error response and a random tie-breaker value resolve it.</p>
+      <p>An ICE-lite agent, such as a media server with a public address, only answers checks and is always controlled.</p>
+    </div>
+    <div>
+      <p><strong>Regular nomination</strong> lets checks finish, then nominates the best valid pair. It gives the best path and takes longer.</p>
+      <p><strong>Aggressive nomination</strong> sets USE-CANDIDATE on every request, so the first success is chosen. Media can start sooner, but a better pair may never get its turn. Try both in the simulator with the Full cone ↔ Symmetric scenario.</p>
+    </div>
+  </div>
+</section>
+
+<section id="sdp">
+  <h2>Reading an SDP candidate line</h2>
+<pre>a=candidate:842163049 1 udp 1694498815 203.0.113.7 61002 typ srflx raddr 192.168.1.23 rport 54321
+
+842163049        foundation
+1                component (1 = RTP)
+udp              transport
+1694498815       priority
+203.0.113.7 61002   public address and port the NAT assigned
+typ srflx        candidate type
+raddr / rport    the base the candidate was derived from</pre>
+  <p>Browsers often replace a host address with a random <code>.local</code> name (mDNS) so web pages cannot read the device's private IP.</p>
+</section>
+
+<section id="more">
+  <h2>Beyond the basics</h2>
+  <div class="two">
+    <div>
+      <h3>Trickle ICE</h3>
+      <p>Sends candidates one by one over signaling and starts checking right away. Connection time drops from "slowest gather" to "first working pair".</p>
+      <h3>ICE restart</h3>
+      <p>New username fragment and password, new gathering, new checklist. Used when the path fails or the device changes networks, for example Wi-Fi to cellular.</p>
+    </div>
+    <div>
+      <h3>Why symmetric NATs hurt</h3>
+      <p>A symmetric NAT creates a new mapping for every destination. The port a STUN server saw is useless for the peer. Two symmetric NATs, or symmetric plus port-restricted, cannot punch through and need TURN.</p>
+      <h3>Cost of relay</h3>
+      <p>Relayed media adds a hop and uses the provider's bandwidth. It is the fallback that makes ICE succeed nearly every time.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <strong>Sources</strong>
+  <ul>
+    <li><a href="https://www.rfc-editor.org/rfc/rfc8445" target="_blank" rel="noopener">RFC 8445</a> Interactive Connectivity Establishment</li>
+    <li><a href="https://www.rfc-editor.org/rfc/rfc8838" target="_blank" rel="noopener">RFC 8838</a> Trickle ICE · <a href="https://www.rfc-editor.org/rfc/rfc8839" target="_blank" rel="noopener">RFC 8839</a> ICE in SDP</li>
+    <li><a href="https://www.rfc-editor.org/rfc/rfc8489" target="_blank" rel="noopener">RFC 8489</a> STUN · <a href="https://www.rfc-editor.org/rfc/rfc8656" target="_blank" rel="noopener">RFC 8656</a> TURN · <a href="https://www.rfc-editor.org/rfc/rfc7675" target="_blank" rel="noopener">RFC 7675</a> Consent freshness</li>
+  </ul>
+  Addresses in the simulator come from the reserved documentation ranges (RFC 5737).
+</footer>
+</div>
+
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s);};
+var NATS={none:'No NAT (public IP)',full:'Full cone NAT',addr:'Address-restricted NAT',port:'Port-restricted NAT',sym:'Symmetric NAT'};
+var NATSHORT={none:'Public IP',full:'Full cone',addr:'Addr-restricted',port:'Port-restricted',sym:'Symmetric'};
+var TP={host:126,prflx:110,srflx:100,relay:0};
+var cfg={natA:'port',natB:'port',lan:false,blockA:false,blockB:false,turn:true,nom:'regular'};
+var PRESETS=[
+ {n:'Two home networks',c:{natA:'port',natB:'port',lan:false,blockA:false,blockB:false,turn:true,nom:'regular'}},
+ {n:'Same office LAN',c:{natA:'addr',lan:true,blockA:false,blockB:false}},
+ {n:'Both symmetric',c:{natA:'sym',natB:'sym',lan:false,blockA:false,blockB:false}},
+ {n:'Full cone ↔ Symmetric',c:{natA:'full',natB:'sym',lan:false,blockA:false,blockB:false}},
+ {n:'Server with public IP',c:{natA:'none',natB:'port',lan:false,blockA:false,blockB:false}},
+ {n:'Bob behind UDP block',c:{natA:'port',natB:'port',lan:false,blockA:false,blockB:true}},
+ {n:'Both symmetric, no TURN',c:{natA:'sym',natB:'sym',lan:false,blockA:false,blockB:false,turn:false}}
+];
+var S=null,timer=null;
+
+function isLan(){return cfg.lan&&cfg.natA!=='none';}
+function mkPeer(id){
+  var a=id==='A';
+  var nat=a?cfg.natA:(isLan()?cfg.natA:cfg.natB);
+  var lan=isLan();
+  return {id:id,name:a?'Alice':'Bob',nat:nat,blocked:a?cfg.blockA:cfg.blockB,
+    priv:a?'192.168.1.23':(lan?'192.168.1.41':'10.0.0.8'),port:a?54321:49170,
+    pub:(a||lan)?'203.0.113.7':'198.51.100.20',mapPort:a?61002:62011,prPort:a?61877:62954,
+    relayPort:a?49152:49153};
+}
+function hostIp(p){return p.nat==='none'?p.pub:p.priv;}
+function prio(t){return TP[t]*16777216+65535*256+255;}
+function pairPrio(g,d){g=BigInt(g);d=BigInt(d);return (1n<<32n)*(g<d?g:d)+2n*(g>d?g:d)+(g>d?1n:0n);}
+function addr(c){return c.ip+':'+c.port;}
+function cmpPair(a,b){return a.prio>b.prio?-1:a.prio<b.prio?1:a.id-b.id;}
+
+function reset(){
+  var A=mkPeer('A'),B=mkPeer('B');
+  S={A:A,B:B,phase:'gather',step:0,log:[],cands:{A:[],B:[]},pairs:[],current:null,focusId:null,sel:null,result:null,fm:{},fn:0,pid:0,
+     queue:[['host',A],['srflx',A],['relay',A],['host',B],['srflx',B],['relay',B]]};
+}
+function log(m,c){S.log.push({n:S.step,m:m,c:c||''});}
+function addCand(p,type,ip,port,base){
+  var key=p.id+'|'+type+'|'+base;
+  if(!(key in S.fm))S.fm[key]=++S.fn;
+  var c={peer:p.id,type:type,ip:ip,port:port,base:base,prio:prio(type),found:'F'+S.fm[key]};
+  S.cands[p.id].push(c);return c;
+}
+function newPair(l,r,triggered){
+  return {id:S.pid++,l:l,r:r,prio:pairPrio(l.prio,r.prio),found:l.found+'/'+r.found,state:'frozen',why:'',triggered:!!triggered,pruned:false};
+}
+
+function ok(w){return {ok:true,why:w};}
+function bad(w){return {ok:false,why:w};}
+function oneWay(sk,Sp,d,Dp){
+  var lan=isLan();
+  if(sk==='host'&&Sp.blocked)return bad(Sp.name+"'s firewall drops outbound UDP");
+  if(d.type==='host'&&Dp.blocked)return bad(Dp.name+"'s firewall drops inbound UDP");
+  if(sk==='host'){
+    if(d.type==='host'){
+      if(Dp.nat==='none')return ok(Dp.name+"'s host address is public");
+      if(lan)return ok('Same LAN, reachable directly');
+      return bad(d.ip+' is a private address and not routable from '+Sp.name+"'s network");
+    }
+    if(d.type==='srflx'){
+      if(lan)return bad('Peers share one public IP and the router does not hairpin');
+      if(Dp.nat==='sym')return bad(Dp.name+"'s symmetric NAT opened this port only toward the STUN server");
+      if(Dp.nat==='port'&&Sp.nat==='sym')return bad(Dp.name+"'s port-restricted NAT drops the unexpected source port of "+Sp.name+"'s symmetric NAT");
+      return ok("Each peer's outgoing check opens the hole the other's check needs");
+    }
+    if(d.type==='relay')return ok('Relayed address is public on the TURN server');
+    return ok('Peer-reflexive address learned from an incoming check');
+  }
+  if(d.type==='host'){
+    if(Dp.nat==='none')return ok(Dp.name+"'s host address is public");
+    return bad('The relay cannot reach private address '+d.ip);
+  }
+  if(d.type==='srflx'){
+    if(Dp.nat==='sym')return bad(Dp.name+"'s symmetric NAT opened this port only toward the STUN server");
+    return ok('The relay is a public endpoint and '+Dp.name+"'s own check lets it through");
+  }
+  if(d.type==='relay')return ok('Both ends are relayed through TURN');
+  return ok('Peer-reflexive address learned from an incoming check');
+}
+function kind(c){return c.type==='relay'?'relay':'host';}
+
+function doGather(){
+  var it=S.queue.shift(),k=it[0],p=it[1],c;
+  if(k==='host'){
+    c=addCand(p,'host',hostIp(p),p.port,hostIp(p));
+    log(p.name+' reads its network interface: host candidate '+addr(c)+(p.nat==='none'?' (public address)':' (private address)'));
+  }else if(k==='srflx'){
+    if(p.nat==='none')log(p.name+' sends a STUN Binding request. The reported address equals the host address, so no server-reflexive candidate is added.');
+    else if(p.blocked)log(p.name+"'s STUN request times out because UDP is blocked. No server-reflexive candidate.",'warn');
+    else{
+      c=addCand(p,'srflx',p.pub,p.mapPort,hostIp(p)+':'+p.port);
+      log('STUN server replies to '+p.name+': "you appear as '+addr(c)+'". Server-reflexive candidate added'+(p.nat==='sym'?' (a symmetric NAT will use a different port toward other destinations).':'.'));
+    }
+  }else{
+    if(!cfg.turn)log('No TURN server is configured, so '+p.name+' gets no relay candidate.','warn');
+    else{
+      c=addCand(p,'relay','192.0.2.50',p.relayPort,'192.0.2.50:'+p.relayPort);
+      log(p.name+' sends a TURN Allocate request'+(p.blocked?' over TCP/TLS (UDP is blocked)':'')+'. Relay candidate '+addr(c)+' reserved.');
+    }
+  }
+  if(!S.queue.length)S.phase='pairing';
+}
+
+function doPairing(){
+  var i,j,pairs=[];
+  S.cands.A.forEach(function(l){S.cands.B.forEach(function(r){pairs.push(newPair(l,r));});});
+  var pruned=0;
+  pairs.forEach(function(p){
+    if(p.l.type==='srflx'){p.pruned=true;p.state='pruned';p.why='Redundant: a local srflx candidate is replaced by its host base';pruned++;}
+  });
+  pairs.sort(cmpPair);
+  var seen={},nw=0,nf=0;
+  pairs.forEach(function(p){
+    if(p.pruned)return;
+    if(!seen[p.found]){seen[p.found]=1;p.state='waiting';nw++;}else nf++;
+  });
+  S.pairs=pairs;S.phase='checking';
+  log('Alice pairs '+S.cands.A.length+' local × '+S.cands.B.length+' remote candidates = '+pairs.length+' pairs, prunes '+pruned+' redundant, and sorts the rest by priority. '+nw+' pair(s) start Waiting and '+nf+' start Frozen (a pair that shares its foundation with a better pair waits for it).');
+  if(pairs.length-pruned===0){S.phase='nominate';}
+}
+
+function unfreeze(found){
+  var n=0;
+  S.pairs.forEach(function(p){if(p.state==='frozen'&&!p.pruned&&p.found===found){p.state='waiting';n++;}});
+  return n;
+}
+function rank(p){return S.pairs.filter(function(x){return !x.pruned;}).indexOf(p)+1;}
+
+function doChecking(){
+  var A=S.A,B=S.B,p=S.current;
+  if(p){
+    S.current=null;
+    var res=oneWay(kind(p.l),A,p.r,B);
+    p.why=res.why;
+    if(res.ok){
+      p.state='ok';
+      var n=unfreeze(p.found);
+      log('Success: '+res.why+'.'+(n?' '+n+' Frozen pair(s) with foundation '+p.found+' move to Waiting.':''),'good');
+      if(cfg.nom==='aggressive'){
+        S.sel=p;p.selected=true;S.focusId=p.id;
+        S.pairs.forEach(function(x){if(x.state==='waiting'||x.state==='frozen')x.state='stopped';});
+        log('Aggressive nomination: every request carries USE-CANDIDATE, so this first success is nominated at once and the remaining checks stop.','good');
+        S.result={ok:true,pair:p};S.phase='done';return;
+      }
+    }else{
+      p.state='fail';
+      log('Failed: '+res.why+'.','warn');
+      if(p.r.type!=='prflx'&&!B.blocked){
+        var back=oneWay('host',B,p.l,A);
+        if(back.ok){
+          var pr=S.cands.B.filter(function(c){return c.type==='prflx';})[0];
+          if(!pr){
+            var port=B.nat==='sym'?B.prPort:(B.nat==='none'?B.port:B.mapPort);
+            pr=addCand(B,'prflx',B.pub,port,hostIp(B)+':'+B.port);
+          }
+          var np=newPair(p.l,pr,true);np.state='waiting';
+          S.pairs.push(np);S.pairs.sort(cmpPair);
+          log('Bob\'s own check toward Alice does get through, and Alice sees it arrive from '+addr(pr)+', an address she was never told. She adds a peer-reflexive candidate and a triggered check for it.','good');
+        }
+      }
+    }
+    return;
+  }
+  var w=S.pairs.filter(function(x){return x.state==='waiting'&&!x.pruned;});
+  w.sort(function(a,b){return (b.triggered-a.triggered)||cmpPair(a,b);});
+  if(w.length){
+    var c=w[0];c.state='inprog';S.current=c;S.focusId=c.id;
+    var from=c.l.type==='relay'
+      ?'Alice hands a connectivity check (a STUN Binding request) to the TURN server, which forwards it from her relayed address '+addr(c.l)
+      :'Alice sends a connectivity check (a STUN Binding request) from her host '+addr(c.l);
+    var bfrom=c.r.type==='relay'?'through the TURN server from his relayed address '+addr(c.r)
+      :c.r.type==='host'?'from his host '+addr(c.r):'from his host (outside it appears as '+addr(c.r)+')';
+    log((c.triggered?'Triggered check':'Check #'+rank(c))+': '+from+' to Bob\'s '+c.r.type+' '+addr(c.r)+'. At the same time Bob, running the mirror checklist, sends his check '+bfrom+' to Alice\'s '+c.l.type+' '+addr(c.l)+'.');
+    return;
+  }
+  var f=S.pairs.filter(function(x){return x.state==='frozen'&&!x.pruned;});
+  if(f.length){
+    f[0].state='waiting';
+    log('No Waiting pair is left, so the highest-priority Frozen pair ('+f[0].found+') is unfrozen.');
+    return;
+  }
+  S.phase='nominate';
+  log('The checklist is finished.');
+}
+
+function doNominate(){
+  var valid=S.pairs.filter(function(p){return p.state==='ok';}).sort(cmpPair);
+  S.phase='done';
+  if(!valid.length){
+    S.result={ok:false};
+    log('No pair succeeded. ICE fails and the connection state becomes "failed".','warn');
+    return;
+  }
+  var b=valid[0];b.selected=true;S.sel=b;S.focusId=b.id;S.result={ok:true,pair:b};
+  log('Alice picks the highest-priority valid pair (of '+valid.length+') and repeats its check with USE-CANDIDATE. Bob confirms. Pair nominated.','good');
+}
+
+function step(){
+  if(!S||S.phase==='done')return;
+  S.step++;
+  if(S.phase==='gather')doGather();
+  else if(S.phase==='pairing')doPairing();
+  else if(S.phase==='checking')doChecking();
+  else if(S.phase==='nominate')doNominate();
+}
+function runAll(){var g=0;while(S.phase!=='done'&&g++<300)step();}
+function stopTimer(){if(timer){clearInterval(timer);timer=null;}$('#btnPlay').textContent='Auto-play';}
+
+/* ---------- rendering ---------- */
+function badge(t){return '<span class="badge '+t+'">'+t+'</span>';}
+var STATE_LABEL={frozen:'Frozen',waiting:'Waiting',inprog:'In progress',ok:'Succeeded',fail:'Failed',pruned:'Pruned',stopped:'Cancelled'};
+
+function renderStages(){
+  var order=['gather','pairing','checking','nominate'],names=['Gather','Pair','Check','Nominate'];
+  var idx=S.phase==='done'?4:order.indexOf(S.phase);
+  $('#stages').innerHTML=names.map(function(n,i){
+    var c=i<idx?'done':(i===idx?'on':'');
+    return '<span class="stage '+c+'">'+(i<idx?'✓ ':'')+n+'</span>';
+  }).join('');
+}
+
+function pathFor(p){
+  var viaRelay=p.l.type==='relay'||p.r.type==='relay';
+  if(viaRelay)return 'M120,210 L190,210 L240,210 L520,96 L660,210 L780,210';
+  if(isLan()&&p.l.type==='host'&&p.r.type==='host')return 'M70,250 C70,390 830,390 830,250';
+  return 'M120,210 L780,210';
+}
+function renderDiagram(){
+  var A=S.A,B=S.B,i;
+  var fp=S.pairs.filter(function(p){return p.id===S.focusId;})[0];
+  var h='';
+  h+='<path class="net" d="M120,210 L190,210 M290,210 L610,210 M710,210 L780,210"/>';
+  h+='<path class="net" d="M330,92 L400,180 M570,92 L500,180" stroke-dasharray="2 5"/>';
+  if(isLan())h+='<path class="net" d="M70,250 C70,390 830,390 830,250" stroke-dasharray="6 5"/><text x="450" y="378" text-anchor="middle" class="sub">LAN 192.168.1.0/24</text>';
+  h+='<ellipse class="cloud" cx="450" cy="210" rx="110" ry="42"/><text x="450" y="214" text-anchor="middle" class="sub">Internet</text>';
+  if(fp){
+    var cls=fp.selected?'sel':fp.state==='inprog'?'inprog':fp.state==='ok'?'ok':fp.state==='fail'?'fail':'idle';
+    h+='<path class="path '+cls+'" d="'+pathFor(fp)+'"/>';
+    var lbl=fp.l.type+' → '+fp.r.type+(fp.selected?' (selected)':'');
+    h+='<text x="450" y="'+(isLan()&&fp.l.type==='host'&&fp.r.type==='host'?330:196)+'" text-anchor="middle" style="font-weight:500">'+lbl+'</text>';
+  }
+  function node(x,y,w,hh,title,sub,pub){
+    return '<rect class="box'+(pub?' pub':'')+'" x="'+(x-w/2)+'" y="'+(y-hh/2)+'" width="'+w+'" height="'+hh+'" rx="8"/>'+
+      '<text class="lbl" x="'+x+'" y="'+(y-(sub?2:-4))+'" text-anchor="middle">'+title+'</text>'+(sub?'<text class="sub" x="'+x+'" y="'+(y+13)+'" text-anchor="middle">'+sub+'</text>':'');
+  }
+  h+=node(70,210,100,80,'Alice','private host',A.nat==='none');
+  h+=node(830,210,100,80,'Bob','private host',B.nat==='none');
+  h+=node(240,210,100,60,'NAT A',NATSHORT[A.nat],A.nat==='none');
+  h+=node(660,210,100,60,isLan()?'Same router':'NAT B',NATSHORT[B.nat],B.nat==='none');
+  h+=node(330,70,120,44,'STUN','192.0.2.10:3478');
+  h+=node(570,70,120,44,'TURN','192.0.2.50:3478');
+  if(A.nat==='none')h=h.replace('private host','public host');
+  var texts='';
+  function ctext(c,x,y){return '<text class="t-'+c.type+' pop" x="'+x+'" y="'+y+'" text-anchor="middle">'+c.type+' '+addr(c)+'</text>';}
+  S.cands.A.forEach(function(c){
+    if(c.type==='host')texts+=ctext(c,70,272);
+    if(c.type==='srflx')texts+=ctext(c,240,262);
+    if(c.type==='relay')texts+=ctext(c,570,112);
+  });
+  S.cands.B.forEach(function(c){
+    if(c.type==='host')texts+=ctext(c,830,272);
+    if(c.type==='srflx')texts+=ctext(c,660,262);
+    if(c.type==='relay')texts+=ctext(c,570,127);
+    if(c.type==='prflx')texts+=ctext(c,660,278);
+  });
+  if(A.blocked)texts+='<text x="70" y="160" text-anchor="middle" style="fill:var(--bad)" class="sub">UDP blocked</text>';
+  if(B.blocked)texts+='<text x="830" y="160" text-anchor="middle" style="fill:var(--bad)" class="sub">UDP blocked</text>';
+  $('#diagram').innerHTML=h+texts;
+}
+
+function renderCands(){
+  ['A','B'].forEach(function(id){
+    var list=S.cands[id].slice().sort(function(a,b){return b.prio-a.prio;});
+    $('#cand'+id).innerHTML=list.length?'<div class="cand">'+list.map(function(c){
+      return badge(c.type)+'<span class="addr">'+addr(c)+'</span><span class="pr" title="'+TP[c.type]+' × 2^24 + 65535 × 2^8 + 255 (foundation '+c.found+')">'+c.found+' · '+c.prio+'</span>';
+    }).join('')+'</div>':'<div class="empty">Nothing gathered yet.</div>';
+  });
+}
+
+function renderPairs(){
+  if(!S.pairs.length){$('#pairs').innerHTML='<tr><td colspan="7" class="empty">Pairs appear after both peers have gathered candidates.</td></tr>';return;}
+  var n=0;
+  $('#pairs').innerHTML=S.pairs.map(function(p){
+    var r=p.pruned?'–':(++n);
+    var cl='row'+(p.pruned?' pruned':'')+(p.id===S.focusId?' focus':'')+(p.selected?' sel':'');
+    return '<tr class="'+cl+'" data-id="'+p.id+'" tabindex="0">'+
+      '<td class="num">'+r+'</td>'+
+      '<td>'+badge(p.l.type)+' <span class="mono addr">'+addr(p.l)+'</span></td>'+
+      '<td>'+badge(p.r.type)+' <span class="mono addr">'+addr(p.r)+'</span>'+(p.triggered?' <span class="note">triggered</span>':'')+'</td>'+
+      '<td class="mono num">'+p.prio.toString()+'</td>'+
+      '<td class="mono">'+p.found+'</td>'+
+      '<td><span class="pill '+p.state+'">'+STATE_LABEL[p.state]+'</span>'+(p.selected?' <strong style="color:var(--ok)">nominated</strong>':'')+'</td>'+
+      '<td class="why">'+(p.why||'')+'</td></tr>';
+  }).join('');
+}
+
+function renderLog(){
+  var el=$('#log');
+  el.innerHTML=S.log.length?S.log.map(function(l){return '<li class="'+l.c+'"><span class="n">'+l.n+'</span><span class="m">'+l.m+'</span></li>';}).join(''):'<li><span class="n"></span><span class="m note">Press Next step to begin.</span></li>';
+  el.scrollTop=el.scrollHeight;
+}
+
+function renderResult(){
+  var r=S.result,el=$('#result');
+  if(!r){el.innerHTML='';return;}
+  if(r.ok){
+    var p=r.pair,relayed=p.l.type==='relay'||p.r.type==='relay';
+    el.innerHTML='<div class="result ok"><h3>Connected: '+(relayed?'relayed through TURN':'direct peer-to-peer')+'</h3>'+
+      '<p>Selected pair: Alice '+badge(p.l.type)+' <span class="mono">'+addr(p.l)+'</span> ⇄ Bob '+badge(p.r.type)+' <span class="mono">'+addr(p.r)+'</span></p>'+
+      '<p>'+(relayed?'Media passes through the server. That adds latency and costs bandwidth, but it works behind almost any NAT.':'Media flows straight between the peers, with no server in the path.')+
+      (cfg.nom==='aggressive'?' Aggressive nomination took the first pair that worked, which may not be the best one available.':'')+'</p></div>';
+  }else{
+    el.innerHTML='<div class="result bad"><h3>ICE failed</h3><p>Every pair failed. '+(cfg.turn?'Even the relay pairs could not complete.':'Without a TURN server there is no fallback when hole punching fails. Turn TURN on to see the relay pairs work.')+'</p></div>';
+  }
+}
+
+function render(){
+  renderStages();renderDiagram();renderCands();renderPairs();renderLog();renderResult();
+  var done=S.phase==='done';
+  $('#btnStep').disabled=done;$('#btnSkip').disabled=done;$('#btnPlay').disabled=done;
+}
+
+/* ---------- controls ---------- */
+function fillSelects(){
+  ['natA','natB'].forEach(function(id){
+    $('#'+id).innerHTML=Object.keys(NATS).map(function(k){return '<option value="'+k+'">'+NATS[k]+'</option>';}).join('');
+  });
+}
+function syncControls(){
+  if(cfg.natA==='none')cfg.lan=false;
+  if(cfg.lan)cfg.natB=cfg.natA;
+  $('#natA').value=cfg.natA;$('#natB').value=cfg.natB;$('#nom').value=cfg.nom;
+  $('#lan').checked=cfg.lan;$('#lan').disabled=cfg.natA==='none';
+  $('#natB').disabled=cfg.lan;
+  $('#blockA').checked=cfg.blockA;$('#blockB').checked=cfg.blockB;$('#turn').checked=cfg.turn;
+}
+function apply(skip){
+  stopTimer();syncControls();reset();
+  if(skip)runAll();
+  render();
+}
+function bind(){
+  $('#natA').addEventListener('change',function(e){cfg.natA=e.target.value;apply(true);});
+  $('#natB').addEventListener('change',function(e){cfg.natB=e.target.value;apply(true);});
+  $('#nom').addEventListener('change',function(e){cfg.nom=e.target.value;apply(true);});
+  [['lan','lan'],['blockA','blockA'],['blockB','blockB'],['turn','turn']].forEach(function(x){
+    $('#'+x[0]).addEventListener('change',function(e){cfg[x[1]]=e.target.checked;apply(true);});
+  });
+  var pr=$('#presets');
+  PRESETS.forEach(function(p,i){
+    var b=document.createElement('button');b.type='button';b.className='chip';b.textContent=p.n;
+    b.addEventListener('click',function(){
+      Object.keys(PRESETS[0].c).forEach(function(k){cfg[k]=PRESETS[0].c[k];});
+      Object.keys(p.c).forEach(function(k){cfg[k]=p.c[k];});
+      apply(true);
+    });
+    pr.appendChild(b);
+  });
+  $('#btnStep').addEventListener('click',function(){stopTimer();step();render();});
+  $('#btnSkip').addEventListener('click',function(){stopTimer();runAll();render();});
+  $('#btnRestart').addEventListener('click',function(){apply(false);});
+  $('#btnPlay').addEventListener('click',function(){
+    if(timer){stopTimer();return;}
+    $('#btnPlay').textContent='Pause';
+    timer=setInterval(function(){step();render();if(S.phase==='done')stopTimer();},650);
+  });
+  $('#pairs').addEventListener('click',function(e){
+    var tr=e.target.closest('tr[data-id]');if(!tr)return;
+    S.focusId=+tr.getAttribute('data-id');renderDiagram();renderPairs();
+  });
+  $('#pairs').addEventListener('keydown',function(e){
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    var tr=e.target.closest('tr[data-id]');if(!tr)return;e.preventDefault();
+    S.focusId=+tr.getAttribute('data-id');renderDiagram();renderPairs();
+    var again=$('#pairs tr[data-id="'+S.focusId+'"]');if(again)again.focus();
+  });
+}
+fillSelects();bind();apply(true);
+})();
+</script>
+
+</body></html>
