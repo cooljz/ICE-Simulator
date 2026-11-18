@@ -41,6 +41,9 @@ nav.jump{display:flex;flex-wrap:wrap;gap:6px 18px;font-size:14px}
 section{padding-block:28px}
 .panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px}
 .note{font-size:13px;color:var(--muted)}
+.tip{border-bottom:1px dotted currentColor;cursor:help;position:relative}
+.tip::after{content:attr(data-tip);position:absolute;left:0;bottom:calc(100% + 6px);width:max-content;max-width:min(280px,75vw);padding:8px 10px;background:var(--fg);color:var(--bg);font-size:12.5px;font-weight:400;line-height:1.45;text-align:left;border-radius:6px;opacity:0;pointer-events:none;z-index:40;transition:opacity .12s}
+.tip:hover::after,.tip:focus::after{opacity:1}
 
 /* simulator */
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;align-items:end}
@@ -171,7 +174,7 @@ footer ul{padding-left:18px;margin:8px 0}
       <label class="check"><input type="checkbox" id="turn" checked> TURN server available</label>
     </div>
     <div class="presets" id="presets"><span class="lab">Scenarios</span></div>
-    <p class="note" style="margin:12px 0 0">Simplified model: one media component, one network interface per peer, UDP, no retransmission timers. Alice is the controlling agent.</p>
+    <p class="note" style="margin:12px 0 0">Simplified model: one media component, one network interface per peer, UDP, no retransmission timers. Alice is the controlling <span class="tip" tabindex="0" data-tip="An ICE agent is the software on one endpoint, such as a browser's WebRTC stack, that runs the ICE procedure: it gathers candidates, runs checks and reports the chosen path. Alice and Bob are one agent each.">agent</span>.</p>
   </div>
 
   <div class="runbar">
@@ -222,12 +225,12 @@ footer ul{padding-left:18px;margin:8px 0}
 <section id="flow">
   <h2>The algorithm, step by step</h2>
   <ol class="flow">
-    <li><div><h3>Gather</h3><p>Each peer lists its host addresses, asks a STUN server for its server-reflexive address (a STUN Binding request, answered with the address the server saw) and asks a TURN server for a relayed address. With trickle ICE, candidates are sent as they appear instead of after gathering ends.</p></div></li>
-    <li><div><h3>Exchange</h3><p>Peers swap candidates, a username fragment and a password through signaling (in WebRTC, the SDP offer and answer). ICE does not define the signaling channel.</p></div></li>
-    <li><div><h3>Pair and prioritize</h3><p>Each peer pairs every local candidate with every remote candidate. Pairs whose local side is server-reflexive are pruned, because the packet would leave from the same host base as the host pair. The rest are sorted by pair priority.</p></div></li>
-    <li><div><h3>Check connectivity</h3><p>Each peer sends a <em>connectivity check</em> for every pair, in list order, paced at one every Ta (50 ms by default). A check is an ordinary STUN Binding request, the same message used to ask a STUN server for a reflexive address, but sent peer to peer: every ICE agent is both a STUN client and a STUN server. It carries the peers' username fragments, a message integrity check and ICE attributes (PRIORITY, ICE-CONTROLLING or ICE-CONTROLLED, USE-CANDIDATE). The success response echoes the source address the request arrived from. That proves the path works in both directions and reveals peer-reflexive addresses. For a relay candidate, the agent hands the request to the TURN server, which sends it from the relayed address. Both peers check at once, <a href="#punch">which is what opens the NAT holes</a>. Pairs that share a <a href="#foundation">foundation</a> start Frozen and thaw when a sibling succeeds.</p></div></li>
-    <li><div><h3>Nominate</h3><p>The controlling agent picks one valid pair and repeats the check with the USE-CANDIDATE attribute. The controlled agent confirms. That pair carries the media.</p></div></li>
-    <li><div><h3>Keep alive</h3><p>Consent freshness checks run for the life of the session. If the selected path dies, or the network changes, an ICE restart builds a new checklist.</p></div></li>
+    <li><div><h3>Gathering candidates</h3><p>Each peer lists its host addresses, asks a STUN server for its server-reflexive address (a STUN Binding request, answered with the address the server saw) and asks a TURN server for a relayed address. With trickle ICE, candidates are sent as they appear instead of after gathering ends.</p></div></li>
+    <li><div><h3>Exchanging candidates</h3><p>Peers swap candidates, a username fragment and a password through signaling (in WebRTC, the SDP offer and answer). ICE does not define the signaling channel.</p></div></li>
+    <li><div><h3>Pairing and prioritizing</h3><p>Each peer pairs every local candidate with every remote candidate. Pairs whose local side is server-reflexive are pruned, because the packet would leave from the same host base as the host pair. The rest are sorted by pair priority.</p></div></li>
+    <li><div><h3>Connectivity checks</h3><p>Each peer sends a <em>connectivity check</em> for every pair, in list order, paced at one every Ta (50 ms by default). A check is an ordinary STUN Binding request, the same message used to ask a STUN server for a reflexive address, but sent peer to peer: every ICE <span class="tip" tabindex="0" data-tip="An ICE agent is the software on one endpoint, such as a browser's WebRTC stack, that runs the ICE procedure: it gathers candidates, runs checks and reports the chosen path.">agent</span> is both a STUN client and a STUN server. It carries the peers' username fragments, a message integrity check and ICE attributes (PRIORITY, ICE-CONTROLLING or ICE-CONTROLLED, USE-CANDIDATE). The success response echoes the source address the request arrived from. That proves the path works in both directions and reveals peer-reflexive addresses. For a relay candidate, the agent hands the request to the TURN server, which sends it from the relayed address. Both peers check at once, <a href="#punch">which is what opens the NAT holes</a>. Pairs that share a <a href="#foundation">foundation</a> start Frozen and thaw when a sibling succeeds.</p></div></li>
+    <li><div><h3>Nomination and selection</h3><p>The controlling agent picks one valid pair and repeats the check with the USE-CANDIDATE attribute. The controlled agent confirms. That pair carries the media.</p></div></li>
+    <li><div><h3>Keeping it alive</h3><p>Consent freshness checks run for the life of the session. If the selected path dies, or the network changes, an ICE restart builds a new checklist.</p></div></li>
   </ol>
 </section>
 
@@ -316,7 +319,7 @@ pair (Alice srflx, Bob host) F2/F4</pre>
   <h2>Roles and nomination</h2>
   <div class="two">
     <div>
-      <p>One peer is the <strong>controlling</strong> agent (normally the offerer) and the other is <strong>controlled</strong>. Only the controlling agent chooses the final pair. If both claim the same role, the 487 error response and a random tie-breaker value resolve it.</p>
+      <p>One peer is the <strong>controlling</strong> <span class="tip" tabindex="0" data-tip="An ICE agent is the software on one endpoint, such as a browser's WebRTC stack, that runs the ICE procedure: it gathers candidates, runs checks and reports the chosen path.">agent</span> (normally the offerer) and the other is <strong>controlled</strong>. Only the controlling agent chooses the final pair. If both claim the same role, the 487 error response and a random tie-breaker value resolve it.</p>
       <p>An ICE-lite agent, such as a media server with a public address, only answers checks and is always controlled.</p>
     </div>
     <div>
@@ -520,13 +523,12 @@ function doChecking(){
     }else{
       p.state='fail';
       log('Failed: '+res.why+'.','warn');
-      if(p.r.type!=='prflx'&&!B.blocked){
+      if(p.r.type!=='prflx'&&!B.blocked&&B.nat==='sym'){
         var back=oneWay('host',B,p.l,A);
         if(back.ok){
           var pr=S.cands.B.filter(function(c){return c.type==='prflx';})[0];
           if(!pr){
-            var port=B.nat==='sym'?B.prPort:(B.nat==='none'?B.port:B.mapPort);
-            pr=addCand(B,'prflx',B.pub,port,hostIp(B)+':'+B.port);
+            pr=addCand(B,'prflx',B.pub,B.prPort,hostIp(B)+':'+B.port);
           }
           var np=newPair(p.l,pr,true);np.state='waiting';
           S.pairs.push(np);S.pairs.sort(cmpPair);
