@@ -59,7 +59,8 @@ button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
 button:disabled{opacity:.45;cursor:default}
 .chip{font-size:13px;padding:4px 10px;border-radius:999px}
 
-.runbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:16px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+.runbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:12px;padding-block:10px;position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
 .stages{display:flex;flex-wrap:wrap;gap:6px;margin-left:auto}
 .stage{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
 .stage.done{color:var(--ok);border-color:var(--ok)}
@@ -483,13 +484,13 @@ function doPairing(){
     if(p.l.type==='srflx'){p.pruned=true;p.state='pruned';p.why='Redundant: a local srflx candidate is replaced by its host base';pruned++;}
   });
   pairs.sort(cmpPair);
-  var seen={},nw=0,nf=0;
+  var seen={};
   pairs.forEach(function(p){
     if(p.pruned)return;
-    if(!seen[p.found]){seen[p.found]=1;p.state='waiting';nw++;}else nf++;
+    if(!seen[p.found]){seen[p.found]=1;p.state='waiting';}
   });
   S.pairs=pairs;S.phase='checking';
-  log('Alice pairs '+S.cands.A.length+' local × '+S.cands.B.length+' remote candidates = '+pairs.length+' pairs, prunes '+pruned+' redundant, and sorts the rest by priority. '+nw+' pair(s) start Waiting and '+nf+' start Frozen (a pair that shares its foundation with a better pair waits for it).');
+  log('Alice pairs '+S.cands.A.length+' local × '+S.cands.B.length+' remote candidates = '+pairs.length+' pairs, prunes '+pruned+' redundant, and sorts the rest by priority. The first pair of each foundation starts Waiting; the others are Frozen.');
   if(pairs.length-pruned===0){S.phase='nominate';}
 }
 
@@ -539,12 +540,8 @@ function doChecking(){
   w.sort(function(a,b){return (b.triggered-a.triggered)||cmpPair(a,b);});
   if(w.length){
     var c=w[0];c.state='inprog';S.current=c;S.focusId=c.id;
-    var from=c.l.type==='relay'
-      ?'Alice hands a connectivity check (a STUN Binding request) to the TURN server, which forwards it from her relayed address '+addr(c.l)
-      :'Alice sends a connectivity check (a STUN Binding request) from her host '+addr(c.l);
-    var bfrom=c.r.type==='relay'?'through the TURN server from his relayed address '+addr(c.r)
-      :c.r.type==='host'?'from his host '+addr(c.r):'from his host (outside it appears as '+addr(c.r)+')';
-    log((c.triggered?'Triggered check':'Check #'+rank(c))+': '+from+' to Bob\'s '+c.r.type+' '+addr(c.r)+'. At the same time Bob, running the mirror checklist, sends his check '+bfrom+' to Alice\'s '+c.l.type+' '+addr(c.l)+'.');
+    var from=c.l.type==='relay'?'via the TURN server (relayed '+addr(c.l)+')':'from her '+c.l.type+' '+addr(c.l);
+    log((c.triggered?'Triggered check':'Check #'+rank(c))+': Alice sends a STUN Binding request '+from+' to Bob\'s '+c.r.type+' '+addr(c.r)+' (ICE-CONTROLLING, PRIORITY '+c.l.prio+').');
     return;
   }
   var f=S.pairs.filter(function(x){return x.state==='frozen'&&!x.pruned;});
